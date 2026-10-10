@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import pytest
 
 from pipeline import config, extract, features, model, transform
 from pipeline.countries import COUNTRIES
@@ -41,6 +42,19 @@ def test_panel_is_complete_and_zero_filled():
     afg = panel[(panel["iso3"] == "AFG") & (panel["month"] == pd.Period("2020-03", "M"))].iloc[0]
     assert afg["state_based"] == 30 and afg["one_sided"] == 5 and afg["events"] == 2
     assert panel["state_based"].sum() == 30  # unknown country code dropped
+
+
+def test_multi_month_events_are_spread_evenly():
+    events = pd.DataFrame([
+        {"country_id": 530, "type_of_violence": 1, "date_start": "2021-01-01", "date_end": "2021-12-31", "best": 1200},
+        {"country_id": 530, "type_of_violence": 1, "date_start": "2021-03-10", "date_end": "2021-03-12", "best": 7},
+    ])
+    panel = transform.build_panel(events, "2021-01", "2021-12")
+    eth = panel[panel["iso3"] == "ETH"].set_index("month")
+    assert eth["state_based"].sum() == pytest.approx(1207)
+    assert eth.loc[pd.Period("2021-06", "M"), "state_based"] == pytest.approx(100)
+    assert eth.loc[pd.Period("2021-03", "M"), "state_based"] == pytest.approx(107)
+    assert eth["events"].sum() == 2  # each event counted once
 
 
 def test_target_looks_forward_and_features_do_not():
