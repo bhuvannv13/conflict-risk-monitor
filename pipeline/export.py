@@ -30,13 +30,13 @@ def country_records(latest, panel):
             "iso3": row.iso3, "name": row.country, "region": row.region,
             "probability": _round(row.probability), "band": row.band,
             "deaths_12m": {
-                "state_based": int(last12["state_based"].sum()) if last12 is not None else 0,
-                "non_state": int(last12["non_state"].sum()) if last12 is not None else 0,
-                "one_sided": int(last12["one_sided"].sum()) if last12 is not None else 0,
+                "state_based": int(round(last12["state_based"].sum())) if last12 is not None else 0,
+                "non_state": int(round(last12["non_state"].sum())) if last12 is not None else 0,
+                "one_sided": int(round(last12["one_sided"].sum())) if last12 is not None else 0,
             },
-            "events_12m": int(last12["events"].sum()) if last12 is not None else 0,
+            "events_12m": int(round(last12["events"].sum())) if last12 is not None else 0,
             "months_since_fatal": int(row.months_since_fatal),
-            "trend_state_based": [int(v) for v in g["state_based"]] if g is not None else [],
+            "trend_state_based": [int(round(v)) for v in g["state_based"]] if g is not None else [],
             "gdp_per_capita": _round(np.exp(row.log_gdp_per_capita), 0) if pd.notna(row.log_gdp_per_capita) else None,
             "infant_mortality": _round(row.infant_mortality, 1),
         })
@@ -48,9 +48,9 @@ def global_series(panel):
     by_month = by_month[by_month.index >= by_month.index.max() - 119]
     return {
         "months": [str(m) for m in by_month.index],
-        "state_based": [int(v) for v in by_month["state_based"]],
-        "non_state": [int(v) for v in by_month["non_state"]],
-        "one_sided": [int(v) for v in by_month["one_sided"]],
+        "state_based": [int(round(v)) for v in by_month["state_based"]],
+        "non_state": [int(round(v)) for v in by_month["non_state"]],
+        "one_sided": [int(round(v)) for v in by_month["one_sided"]],
     }
 
 
