@@ -10,7 +10,7 @@ import requests
 
 from . import config
 
-GED_COLUMNS = ["country_id", "type_of_violence", "date_start", "best"]
+GED_COLUMNS = ["id", "country_id", "type_of_violence", "date_start", "date_end", "best"]
 HEADERS = {"User-Agent": "conflict-risk-monitor (github.com/bhuvannv13/conflict-risk-monitor)"}
 
 
@@ -37,21 +37,40 @@ def download(url, dest, retries=3):
     return dest
 
 
-def latest_candidate_url(page_html):
-    """Return the URL of the newest monthly candidate events file listed on the downloads page."""
+def latest_candidate_version(page_html):
+    """Return (major, minor) of the newest monthly candidate file listed on the downloads page."""
     found = re.findall(r"candidateged/GEDEvent_v(\d+)_0_(\d+)\.csv", page_html)
     if not found:
         return None
     major, minor = max(found, key=lambda pair: (int(pair[0]), int(pair[1])))
+    return int(major), int(minor)
+
+
+def latest_candidate_url(page_html):
+    version = latest_candidate_version(page_html)
+    return candidate_url(*version) if version else None
+
+
+def candidate_url(major, minor):
     return f"https://ucdp.uu.se/downloads/candidateged/GEDEvent_v{major}_0_{minor}.csv"
 
 
-def discover_candidate_url():
+def candidate_versions():
+    """All monthly candidate releases of the current year, oldest first.
+
+    Each monthly file covers one month, so the months since the last final GED release
+    need every file from _0_1 up to the newest one.
+    """
     try:
         page = requests.get(config.UCDP_DOWNLOADS_PAGE, headers=HEADERS, timeout=60).text
-        return latest_candidate_url(page) or config.CANDIDATE_FALLBACK_URL
+        version = latest_candidate_version(page)
     except requests.RequestException:
-        return config.CANDIDATE_FALLBACK_URL
+        version = None
+    if version is None:
+        major, minor = re.search(r"_v(\d+)_0_(\d+)", config.CANDIDATE_FALLBACK_URL).groups()
+        version = int(major), int(minor)
+    major, newest = version
+    return [(major, minor) for minor in range(1, newest + 1)]
 
 
 def read_ged_csv(handle):
@@ -69,17 +88,29 @@ def load_ged(path):
 
 
 def load_events():
-    """Final GED plus the newest candidate events that fall after the final release."""
+    """Final GED plus every monthly candidate release that falls after the final release."""
     ged = load_ged(download(config.GED_URL, config.RAW_DIR / Path(config.GED_URL).name))
-    candidate_url = discover_candidate_url()
-    candidate = read_ged_csv(download(candidate_url, config.RAW_DIR / Path(candidate_url).name))
-    ged["date_start"] = pd.to_datetime(ged["date_start"], errors="coerce")
-    candidate["date_start"] = pd.to_datetime(candidate["date_start"], errors="coerce")
-    candidate = candidate[candidate["date_start"] > ged["date_start"].max()]
+    frames, used = [], []
+    for major, minor in candidate_versions():
+        url = candidate_url(major, minor)
+        try:
+            frame = read_ged_csv(download(url, config.RAW_DIR / Path(url).name))
+        except requests.RequestException:
+            continue  # a month that was never published or has been withdrawn
+        frames.append(frame.assign(_release=minor))
+        used.append(f"{major}.0.{minor}")
+    for frame in [ged, *frames]:
+        frame["date_start"] = pd.to_datetime(frame["date_start"], errors="coerce")
+        frame["date_end"] = pd.to_datetime(frame.get("date_end", frame["date_start"]), errors="coerce")
+    candidate = pd.concat(frames, ignore_index=True) if frames else ged.iloc[0:0]
+    if len(candidate):
+        # Later monthly releases can revise earlier events: keep the newest copy of each event id.
+        candidate = candidate.sort_values("_release").drop_duplicates("id", keep="last").drop(columns="_release")
+        candidate = candidate[candidate["date_start"] > ged["date_start"].max()]
     events = pd.concat([ged, candidate], ignore_index=True).dropna(subset=["date_start"])
     sources = {
         "ged": {"url": config.GED_URL, "version": config.GED_VERSION},
-        "candidate": {"url": candidate_url, "version": re.sub(r".*_v(\d+)_0_(\d+)\.csv", r"\1.0.\2", candidate_url)},
+        "candidate": {"url": "https://ucdp.uu.se/downloads/", "version": ", ".join(used) if used else "none"},
     }
     return events, sources
 
