@@ -195,7 +195,7 @@ function renderModel() {
       ${Object.entries(mm.metrics).map(([k, v]) => `<tr><td>${MODEL_NAMES[k] || k}${k === mm.chosen ? " (chosen)" : ""}</td><td>${metricCell(v.validation)}</td><td>${metricCell(v.test)}</td></tr>`).join("")}
     </tbody></table></div>
     <p class="muted">Higher ROC AUC and average precision are better; lower Brier score is better. The persistence baseline simply assumes recent violence continues, which is hard to beat. The model's main value is ranking countries consistently and putting a number on how likely continuation or onset is.</p>
-    <p><strong>Limitations:</strong> most risk comes from countries that are already in conflict, so new outbreaks in previously calm countries are hard to foresee. The newest months use UCDP's preliminary candidate data, which can be revised. Events are counted in the month they started.</p>`;
+    <p><strong>Limitations:</strong> most risk comes from countries that are already in conflict, so new outbreaks in previously calm countries are hard to foresee. The newest months use UCDP's preliminary candidate data, which can be revised. Deaths from events that span several months are split evenly across those months.</p>`;
 }
 
 function renderSources() {
