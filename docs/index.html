@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Conflict Risk Monitor</title>
+<meta name="description" content="Country-level risk of armed-conflict violence in the next three months, estimated from UCDP event data and World Bank indicators.">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="chat.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <p class="eyebrow">Open data · updated monthly</p>
+    <h1>Conflict Risk Monitor</h1>
+    <p class="lede">Which countries are most likely to see armed-conflict violence in the next three months? Estimates come from a model trained on 35+ years of UCDP conflict-event data and World Bank indicators.</p>
+    <p class="note" role="note"><strong>Read this first:</strong> these are statistical estimates for research and learning, not predictions of war or advice. The model only knows past violence and a few development indicators; it cannot see diplomacy, elections or sudden shocks.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="kpis" aria-label="Summary" id="kpis"></section>
+
+  <section class="card" aria-labelledby="global-title">
+    <div class="card-head">
+      <h2 id="global-title">Deaths from organised violence worldwide, by month</h2>
+      <p class="muted">UCDP best estimates, last 10 years. Hover for monthly values.</p>
+    </div>
+    <div id="global-chart" class="chart"></div>
+    <div id="global-legend" class="legend"></div>
+  </section>
+
+  <section class="card" aria-labelledby="table-title">
+    <div class="card-head">
+      <h2 id="table-title">Country risk, next 3 months</h2>
+      <p class="muted" id="target-text"></p>
+    </div>
+    <div class="filters">
+      <label>Search <input id="search" type="search" placeholder="Country name"></label>
+      <label>Region <select id="region"><option value="">All regions</option></select></label>
+      <label>Risk <select id="band"><option value="">All levels</option></select></label>
+    </div>
+    <div class="table-wrap">
+      <table id="risk-table">
+        <thead><tr><th scope="col">Country</th><th scope="col">Region</th><th scope="col">Risk</th><th scope="col" class="num">Probability</th><th scope="col" class="num">State-based deaths, 12 months</th><th scope="col">Last 24 months</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card" id="detail" aria-live="polite" hidden></section>
+
+  <section class="card" aria-labelledby="model-title">
+    <div class="card-head"><h2 id="model-title">How the model works and how good it is</h2></div>
+    <div id="model-card"></div>
+  </section>
+
+  <section class="card" aria-labelledby="sources-title">
+    <div class="card-head"><h2 id="sources-title">Data sources and licence</h2></div>
+    <div id="sources"></div>
+  </section>
+</main>
+
+<footer class="wrap foot">
+  <p>Built by <a href="https://bhuvannv13.github.io/">Bhuvann Vinodh Ram</a> · <a href="https://github.com/bhuvannv13/conflict-risk-monitor">Source code</a> · Code under MIT licence; data under CC BY 4.0 from UCDP and the World Bank.</p>
+</footer>
+
+<script src="chat.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
