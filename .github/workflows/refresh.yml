@@ -1,0 +1,44 @@
+name: Refresh data and forecast
+
+on:
+  schedule:
+    - cron: "17 6 12 * *"   # 06:17 UTC on the 12th of every month
+  workflow_dispatch:
+  push:
+    paths:
+      - "pipeline/**"
+      - ".github/workflows/refresh.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Cache final UCDP release
+        uses: actions/cache@v4
+        with:
+          path: data/raw/ged*.zip
+          key: ged-${{ hashFiles('pipeline/config.py') }}
+      - run: python -m pytest -q
+      - run: python -m pipeline.run
+      - name: Commit refreshed data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/data/forecast.json
+          git commit -m "Refresh forecast data" || echo "No changes"
+          git pull --rebase
+          git push
