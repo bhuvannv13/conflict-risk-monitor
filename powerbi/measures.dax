@@ -1,0 +1,90 @@
+// Conflict Risk Monitor: DAX measures. Create a "_Measures" table (Enter data, one blank column,
+// then hide the column) and add these as measures.
+//
+// Relationships (many-to-one, single direction, from fact to dimension):
+//   fact_forecast[iso3]       -> dim_country[iso3]
+//   fact_country_month[iso3]  -> dim_country[iso3]
+//   fact_backtest[iso3]       -> dim_country[iso3]
+//   fact_country_month[month] -> dim_date[Date]
+//   fact_backtest[month]      -> dim_date[Date]
+// fact_model_metrics, fact_feature_importance and meta stand alone.
+
+// ---------- Current forecast ----------
+Risk Probability = AVERAGE ( fact_forecast[probability] )
+
+Risk Probability Previous = AVERAGE ( fact_forecast[probability_prev] )
+
+Change vs Last Month (pts) = ( [Risk Probability] - [Risk Probability Previous] ) * 100
+
+High Risk Countries = CALCULATE ( DISTINCTCOUNT ( fact_forecast[iso3] ), fact_forecast[band] = "High" )
+
+Elevated Risk Countries = CALCULATE ( DISTINCTCOUNT ( fact_forecast[iso3] ), fact_forecast[band] = "Elevated" )
+
+Countries Rising (over 5 pts) = CALCULATE ( DISTINCTCOUNT ( fact_forecast[iso3] ), fact_forecast[change_1m] > 0.05 )
+
+Risk Band Colour =
+SWITCH (
+    SELECTEDVALUE ( fact_forecast[band] ),
+    "High", "#D03B3B",
+    "Elevated", "#EC835A",
+    "Moderate", "#FAB219",
+    "#898781"
+)
+
+Forecast Question =
+"Probability of at least " & MAX ( fact_forecast[target_deaths] ) & " state-based deaths in the "
+    & MAX ( fact_forecast[horizon_months] ) & " months after " & FORMAT ( MAX ( fact_forecast[forecast_origin] ), "mmm yyyy" )
+
+Data Through = "Event data through " & MAX ( meta[data_through] )
+
+// ---------- History ----------
+State-Based Deaths = SUM ( fact_country_month[state_based] )
+
+Non-State Deaths = SUM ( fact_country_month[non_state] )
+
+One-Sided Deaths = SUM ( fact_country_month[one_sided] )
+
+Total Deaths = SUM ( fact_country_month[total_deaths] )
+
+Events = SUM ( fact_country_month[events] )
+
+Total Deaths Last 12 Months =
+VAR LastMonth = CALCULATE ( MAX ( fact_country_month[month] ), ALL ( fact_country_month ) )
+RETURN
+    CALCULATE ( [Total Deaths], DATESINPERIOD ( dim_date[Date], LastMonth, -12, MONTH ) )
+
+Total Deaths Prior 12 Months =
+VAR LastMonth = CALCULATE ( MAX ( fact_country_month[month] ), ALL ( fact_country_month ) )
+RETURN
+    CALCULATE ( [Total Deaths], DATESINPERIOD ( dim_date[Date], EDATE ( LastMonth, -12 ), -12, MONTH ) )
+
+Deaths YoY % = DIVIDE ( [Total Deaths Last 12 Months] - [Total Deaths Prior 12 Months], [Total Deaths Prior 12 Months] )
+
+// ---------- Backtest (test period: months the model never saw) ----------
+Backtest Predicted Rate = AVERAGE ( fact_backtest[probability] )
+
+Backtest Actual Rate = AVERAGE ( fact_backtest[target] )
+
+Backtest Brier Score = AVERAGEX ( fact_backtest, ( fact_backtest[probability] - fact_backtest[target] ) ^ 2 )
+
+Backtest Persistence Brier = AVERAGEX ( fact_backtest, ( fact_backtest[persistence] - fact_backtest[target] ) ^ 2 )
+
+// Alert quality at a chosen threshold. Create a what-if parameter first:
+// Modeling > New parameter > name "Alert threshold", 0.05 to 0.95, step 0.05, default 0.5.
+Alerts Raised = CALCULATE ( COUNTROWS ( fact_backtest ), fact_backtest[probability] >= 'Alert threshold'[Alert threshold Value] )
+
+Alerts Correct =
+CALCULATE (
+    COUNTROWS ( fact_backtest ),
+    fact_backtest[probability] >= 'Alert threshold'[Alert threshold Value],
+    fact_backtest[target] = 1
+)
+
+Alert Precision = DIVIDE ( [Alerts Correct], [Alerts Raised] )
+
+Alert Recall = DIVIDE ( [Alerts Correct], CALCULATE ( COUNTROWS ( fact_backtest ), fact_backtest[target] = 1 ) )
+
+// ---------- Calibration ----------
+// Calculated column on fact_backtest, used as the axis of a line chart comparing
+// [Backtest Predicted Rate] with [Backtest Actual Rate]:
+// Probability bucket = FORMAT ( FLOOR ( fact_backtest[probability], 0.1 ), "0.0" )

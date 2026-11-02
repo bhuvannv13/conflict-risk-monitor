@@ -4,7 +4,7 @@ import logging
 
 import pandas as pd
 
-from . import config, export, extract, features, model, transform
+from . import config, export, extract, features, model, powerbi, transform
 
 
 def main():
@@ -29,8 +29,12 @@ def main():
     log.info("Evaluation: %s", json.dumps(results))
     log.info("Chosen model: %s", best)
     latest, latest_month = model.forecast(frame, best)
-    path = export.write(latest, latest_month, panel, results, best, periods, sources)
+    importance = model.feature_importance(frame, best)
+    path = export.write(latest, latest_month, panel, results, best, periods, sources, importance)
     log.info("Wrote %s", path)
+    backtest = model.backtest(frame, best)
+    for written in powerbi.write(latest, latest_month, panel, backtest, results, best, importance, sources):
+        log.info("Wrote %s", written)
 
 
 if __name__ == "__main__":

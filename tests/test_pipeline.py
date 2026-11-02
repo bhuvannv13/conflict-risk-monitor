@@ -70,9 +70,9 @@ def test_target_looks_forward_and_features_do_not():
     changed = panel.copy()
     future = changed["month"] > pd.Period("2015-06", "M")
     changed.loc[future, ["state_based", "non_state", "one_sided", "events"]] *= 7
-    before = frame[frame["month"] <= pd.Period("2015-06", "M")][features.FEATURES[:9]].reset_index(drop=True)
+    before = frame[frame["month"] <= pd.Period("2015-06", "M")][features.CONFLICT_FEATURES].reset_index(drop=True)
     after_frame = features.add_features(changed)
-    after = after_frame[after_frame["month"] <= pd.Period("2015-06", "M")][features.FEATURES[:9]].reset_index(drop=True)
+    after = after_frame[after_frame["month"] <= pd.Period("2015-06", "M")][features.CONFLICT_FEATURES].reset_index(drop=True)
     pd.testing.assert_frame_equal(before, after)
 
 
@@ -130,3 +130,46 @@ def test_export_writes_site_json(tmp_path=None):
     afg = next(c for c in data["countries"] if c["iso3"] == "AFG")
     assert len(afg["trend_state_based"]) == export.TREND_MONTHS
     assert len(data["global"]["months"]) == 120
+
+
+def test_regional_feature_excludes_own_country_and_momentum_rises():
+    panel = transform.build_panel(synthetic_events(), "2005-01", "2024-12")
+    frame = features.add_features(panel)
+    # IRL has no violence of its own, but its region (Europe) may; AFG's own deaths never feed its regional feature.
+    own = frame[frame["iso3"] == "AFG"]
+    changed = panel.copy()
+    changed.loc[changed["iso3"] == "AFG", "state_based"] *= 5
+    after = features.add_features(changed)
+    same = after[after["iso3"] == "AFG"]
+    pd.testing.assert_series_equal(own["region_sb_3m"].reset_index(drop=True), same["region_sb_3m"].reset_index(drop=True))
+    assert frame["sb_accel"].notna().all() and (frame["region_sb_3m"] >= 0).all()
+
+
+def test_new_world_bank_indicators_are_joined_and_inflation_clipped():
+    panel = transform.build_panel(synthetic_events(), "2010-01", "2012-12")
+    wdi = pd.DataFrame({"iso3": ["AFG"] * 2, "year": [2010, 2011], "population": [1.0, 1.0], "gdp_per_capita": [1.0, 1.0],
+                        "inflation": [5.0, 5000.0], "net_migration": [-100.0, 200.0]})
+    frame = features.add_features(panel, wdi)
+    afg = frame[frame["iso3"] == "AFG"].set_index("month")
+    assert afg.loc[pd.Period("2012-01", "M"), "inflation"] == 100.0
+    assert afg.loc[pd.Period("2011-06", "M"), "net_migration_slog"] == pytest.approx(-np.log1p(100.0))
+
+
+def test_powerbi_tables_are_consistent(tmp_path):
+    from pipeline import powerbi
+
+    panel = transform.build_panel(synthetic_events(), "2005-01", "2024-12")
+    frame = features.add_features(panel)
+    results, best, _ = model.evaluate(frame)
+    latest, month = model.forecast(frame, best)
+    backtest = model.backtest(frame, best)
+    importance = model.feature_importance(frame, best, repeats=1, sample=500)
+    assert latest["change_1m"].notna().all()
+    paths = powerbi.write(latest, month, panel, backtest, results, best, importance, {"ged": {"version": "x"}}, out_dir=tmp_path)
+    tables = {p.stem: pd.read_csv(p) for p in paths}
+    assert len(tables["dim_country"]) == len(COUNTRIES) == tables["fact_forecast"]["iso3"].nunique()
+    assert set(tables["fact_country_month"]["iso3"]) <= set(tables["dim_country"]["iso3"])
+    assert tables["fact_forecast"]["risk_rank"].min() == 1
+    assert set(tables["fact_backtest"]["target"]) <= {0, 1}
+    assert set(tables["fact_model_metrics"]["period"]) == {"validation", "test"}
+    assert tables["meta"].loc[0, "data_through"] == "2024-12"

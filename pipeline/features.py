@@ -4,11 +4,18 @@ import pandas as pd
 
 from . import config
 
-FEATURES = [
+CONFLICT_FEATURES = [
     "sb_1m", "sb_3m", "sb_12m", "sb_36m", "ns_12m", "os_12m", "events_12m",
-    "months_since_fatal", "months_since_sb25", "log_population", "log_gdp_per_capita",
-    "infant_mortality",
+    "months_since_fatal", "months_since_sb25",
+    # Added in v2: momentum, shorter non-state/one-sided windows and violence in the rest of the region.
+    "sb_accel", "sb_share_3m_12m", "ns_3m", "os_3m", "region_sb_3m",
 ]
+WDI_FEATURES = [
+    "log_population", "log_gdp_per_capita", "infant_mortality",
+    "gdp_growth", "inflation", "youth_unemployment", "net_migration_slog",
+    "military_spend", "secondary_enrolment", "urban_share",
+]
+FEATURES = CONFLICT_FEATURES + WDI_FEATURES
 
 
 def _rolling(group, column, window):
@@ -42,6 +49,15 @@ def add_features(panel, wdi=None):
         group["os_12m"] = _rolling(group, "one_sided", 12)
         group["events_12m"] = np.log1p(group["events"].rolling(12, min_periods=1).sum())
         total = group["state_based"] + group["non_state"] + group["one_sided"]
+        # Momentum: deaths in the last 3 months against the 3 months before, and how much of the
+        # last year's deaths are recent (both use only past months).
+        recent3 = group["state_based"].rolling(3, min_periods=1).sum()
+        prior3 = recent3.shift(3).fillna(0)
+        group["sb_accel"] = np.log1p(recent3) - np.log1p(prior3)
+        group["sb_share_3m_12m"] = recent3 / (group["state_based"].rolling(12, min_periods=1).sum() + 1)
+        group["ns_3m"] = _rolling(group, "non_state", 3)
+        group["os_3m"] = _rolling(group, "one_sided", 3)
+        group["_sb_roll3"] = recent3
         group["months_since_fatal"] = _months_since(total > 0)
         group["months_since_sb25"] = _months_since(group["state_based"] >= config.TARGET_DEATHS)
 
@@ -51,10 +67,15 @@ def add_features(panel, wdi=None):
         parts.append(group)
     panel = pd.concat(parts)
 
+    # Violence elsewhere in the same region over the last 3 months (excluding this country).
+    region_total = panel.groupby(["region", "month"])["_sb_roll3"].transform("sum")
+    panel["region_sb_3m"] = np.log1p((region_total - panel["_sb_roll3"]).clip(lower=0))
+    panel = panel.drop(columns="_sb_roll3")
+
     panel["year"] = panel["month"].dt.year
     if wdi is not None and len(wdi):
         panel = _join_wdi(panel, wdi)
-    for column in ["log_population", "log_gdp_per_capita", "infant_mortality"]:
+    for column in WDI_FEATURES:
         if column not in panel:
             panel[column] = np.nan
     return panel.drop(columns=["year"])
@@ -63,11 +84,20 @@ def add_features(panel, wdi=None):
 def _join_wdi(panel, wdi):
     """Join last year's World Bank values (carried forward when the latest years are missing)."""
     wdi = wdi.copy()
+    for column in ["population", "gdp_per_capita"]:
+        if column in wdi:
+            wdi[column] = wdi[column].where(wdi[column] > 0)
     wdi["log_population"] = np.log(wdi["population"]) if "population" in wdi else np.nan
     wdi["log_gdp_per_capita"] = np.log(wdi["gdp_per_capita"]) if "gdp_per_capita" in wdi else np.nan
-    if "infant_mortality" not in wdi:
-        wdi["infant_mortality"] = np.nan
-    wdi = wdi[["iso3", "year", "log_population", "log_gdp_per_capita", "infant_mortality"]]
+    # Net migration can be strongly negative (people leaving): signed log keeps the direction.
+    wdi["net_migration_slog"] = (np.sign(wdi["net_migration"]) * np.log1p(wdi["net_migration"].abs())
+                                 if "net_migration" in wdi else np.nan)
+    if "inflation" in wdi:  # a handful of hyperinflation years would otherwise dominate the scale
+        wdi["inflation"] = wdi["inflation"].clip(-10, 100)
+    for column in WDI_FEATURES:
+        if column not in wdi:
+            wdi[column] = np.nan
+    wdi = wdi[["iso3", "year", *WDI_FEATURES]]
 
     years = range(int(panel["year"].min()) - 1, int(panel["year"].max()) + 1)
     grid = pd.MultiIndex.from_product([panel["iso3"].unique(), years], names=["iso3", "year"])

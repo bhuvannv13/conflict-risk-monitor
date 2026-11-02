@@ -29,6 +29,8 @@ def country_records(latest, panel):
         records.append({
             "iso3": row.iso3, "name": row.country, "region": row.region,
             "probability": _round(row.probability), "band": row.band,
+            "probability_prev": _round(row.probability_prev), "change_1m": _round(row.change_1m),
+            "regional_violence_3m": _round(np.expm1(row.region_sb_3m), 0),
             "deaths_12m": {
                 "state_based": int(round(last12["state_based"].sum())) if last12 is not None else 0,
                 "non_state": int(round(last12["non_state"].sum())) if last12 is not None else 0,
@@ -39,6 +41,11 @@ def country_records(latest, panel):
             "trend_state_based": [int(round(v)) for v in g["state_based"]] if g is not None else [],
             "gdp_per_capita": _round(np.exp(row.log_gdp_per_capita), 0) if pd.notna(row.log_gdp_per_capita) else None,
             "infant_mortality": _round(row.infant_mortality, 1),
+            "inflation": _round(row.inflation, 1),
+            "youth_unemployment": _round(row.youth_unemployment, 1),
+            "military_spend": _round(row.military_spend, 1),
+            "net_migration": _round(np.sign(row.net_migration_slog) * np.expm1(abs(row.net_migration_slog)), 0)
+            if pd.notna(row.net_migration_slog) else None,
         })
     return records
 
@@ -54,7 +61,8 @@ def global_series(panel):
     }
 
 
-def write(latest, latest_month, panel, results, best, periods, sources, out_dir=config.SITE_DATA_DIR):
+def write(latest, latest_month, panel, results, best, periods, sources, importance=None,
+          out_dir=config.SITE_DATA_DIR):
     out_dir.mkdir(parents=True, exist_ok=True)
     trend_end = latest_month
     payload = {
@@ -67,6 +75,7 @@ def write(latest, latest_month, panel, results, best, periods, sources, out_dir=
                             f"deaths in the {config.HORIZON} months after {latest_month}"),
         },
         "model": {"chosen": best, "metrics": results, "periods": periods},
+        "feature_importance": importance or [],
         "bands": [{"min": lower, "label": label} for lower, label in config.RISK_BANDS],
         "sources": sources,
         "countries": country_records(latest, panel),

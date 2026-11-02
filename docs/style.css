@@ -55,3 +55,8 @@ tbody tr:hover,tbody tr:focus{background:color-mix(in srgb,var(--accent) 8%,tran
 .metrics td,.metrics th{white-space:normal}
 .foot{color:var(--muted);font-size:.85rem;padding-bottom:90px}
 .close-detail{float:right;border:1px solid var(--line);background:none;color:var(--ink);border-radius:8px;padding:4px 10px;cursor:pointer}
+.chg.up{color:var(--high)}.chg.down{color:var(--low)}
+.importance{list-style:none;padding:0;margin:0 0 1rem}
+.importance li{display:grid;grid-template-columns:minmax(0,16rem) 1fr;align-items:center;gap:.75rem;margin:.25rem 0;font-size:.9rem}
+.importance i{display:block;height:8px;border-radius:4px;background:var(--s1)}
+@media (max-width:600px){.importance li{grid-template-columns:1fr}}

@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.impute import SimpleImputer
+from sklearn.inspection import permutation_importance
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import average_precision_score, brier_score_loss, roc_auc_score
 from sklearn.pipeline import make_pipeline
@@ -111,5 +112,45 @@ def forecast(frame, model_name, seed=42):
     latest_month = frame["month"].max()
     latest = frame[frame["month"] == latest_month].copy()
     latest["probability"] = model.predict_proba(latest[cols])[:, 1]
+    # Score the previous month with the same model so the dashboard can show the change.
+    previous = frame[frame["month"] == latest_month - 1].set_index("iso3")
+    prev_probability = pd.Series(model.predict_proba(previous[cols])[:, 1], index=previous.index)
+    latest["probability_prev"] = latest["iso3"].map(prev_probability)
+    latest["change_1m"] = latest["probability"] - latest["probability_prev"]
     latest["band"] = latest["probability"].map(risk_band)
     return latest.sort_values("probability", ascending=False), latest_month
+
+
+def fit_for_test(frame, model_name, seed=42):
+    """The chosen model fitted on train + validation, as used for the untouched test period."""
+    train, valid, _ = split(frame)
+    both = pd.concat([train, valid])
+    cols = usable_features(frame)
+    fitted = make_models(seed)[model_name]
+    fitted.fit(both[cols], both["target"].astype(int))
+    return fitted, cols
+
+
+def backtest(frame, model_name, seed=42):
+    """Out-of-sample probabilities and outcomes for every country-month in the test period."""
+    _, _, test = split(frame)
+    fitted, cols = fit_for_test(frame, model_name, seed)
+    out = test[["iso3", "country", "region", "month", "target", "future_sb"]].copy()
+    out["probability"] = fitted.predict_proba(test[cols])[:, 1]
+    out["persistence"] = persistence_score(test)
+    return out.reset_index(drop=True)
+
+
+def feature_importance(frame, model_name, seed=42, repeats=3, sample=6000):
+    """Permutation importance (drop in average precision) on the test period.
+
+    Shows which inputs the chosen model actually relies on; it is a description of the
+    model, not a causal claim.
+    """
+    _, _, test = split(frame)
+    fitted, cols = fit_for_test(frame, model_name, seed)
+    test = test.sample(min(sample, len(test)), random_state=seed)
+    result = permutation_importance(fitted, test[cols], test["target"].astype(int), scoring="average_precision",
+                                    n_repeats=repeats, random_state=seed)
+    rows = [{"feature": c, "importance": round(float(m), 4)} for c, m in zip(cols, result.importances_mean)]
+    return sorted(rows, key=lambda r: -r["importance"])

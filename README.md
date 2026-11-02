@@ -24,20 +24,23 @@ World Bank indicators (API) ──────────┘        (176 countr
 |---|---|---|
 | Extract | `pipeline/extract.py` | Downloads UCDP GED 26.1 and the newest candidate release it finds on the UCDP downloads page; pages through the World Bank API. Raw files are cached. |
 | Transform | `pipeline/transform.py` | Maps Gleditsch-Ward codes to ISO3, builds a zero-filled country-month panel of deaths by violence type. |
-| Features | `pipeline/features.py` | Rolling deaths (1, 3, 12, 36 months), events, months since last fatal event, lagged population, GDP per person and infant mortality. Every feature uses only data available at the end of that month. |
+| Features | `pipeline/features.py` | Rolling deaths (1, 3, 12, 36 months), events, months since last fatal event, acceleration of violence, violence elsewhere in the same region, and lagged World Bank indicators (population, GDP per person and growth, inflation, youth unemployment, infant mortality, military spending, school enrolment, urbanisation, net migration). Every feature uses only data available at the end of that month. |
 | Model | `pipeline/model.py` | Persistence baseline, logistic regression and histogram gradient boosting. Train to 2017, choose on 2018 to 2021, report once on 2022 onwards. |
 | Export | `pipeline/export.py` | Writes `docs/data/forecast.json` for the site. |
+| Power BI | `pipeline/powerbi.py`, `powerbi/` | Writes star-schema CSVs (country dimension, forecast, country-month history, backtest, metrics, feature importance) and ships Power Query, DAX and a theme. See [powerbi/README.md](powerbi/README.md). |
 | Site | `docs/` | Plain HTML, CSS and JavaScript on GitHub Pages: KPI tiles, trend chart, searchable country table, country detail, model card and chat assistant. |
 
 ## Results
 
-From the run on 10 October 2026, with event data to August 2026. The test period is January 2022 to May 2026: 9,328 country-months, 1,357 of which had 25 or more state-based battle deaths in the following three months. The dashboard's model section always shows the numbers from the latest monthly run.
+From the run on 2 November 2026, with event data to September 2026. The test period is January 2022 to June 2026: 9,504 country-months, 1,382 of which had 25 or more state-based battle deaths in the following three months. The dashboard's model section always shows the numbers from the latest monthly run.
 
 | Model | ROC AUC | Average precision | Brier score |
 |---|---|---|---|
-| Persistence baseline (recent deaths) | 0.981 | 0.942 | 0.026 |
+| Persistence baseline (recent deaths) | 0.981 | 0.943 | 0.026 |
 | Logistic regression | 0.991 | 0.965 | 0.020 |
-| Gradient boosting (chosen on validation) | 0.989 | 0.959 | 0.023 |
+| Gradient boosting (chosen on validation) | 0.990 | 0.962 | 0.022 |
+
+Version 2 added momentum, regional-spillover and seven more World Bank features. They improved validation average precision for gradient boosting only slightly (0.958 to 0.960), so most of the model's skill still comes from recent violence. The permutation-importance chart on the dashboard shows this directly.
 
 The baseline is strong because armed conflict is persistent; the learned models add a modest improvement in both ranking (ROC AUC, average precision) and calibration (Brier score). Logistic regression scored slightly higher on the test period, but the model is picked on the validation period only, so the test score stays an honest estimate.
 

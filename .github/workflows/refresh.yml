@@ -38,7 +38,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/data/forecast.json
+          git add docs/data/forecast.json powerbi/data
           git commit -m "Refresh forecast data" || echo "No changes"
           git pull --rebase
           git push

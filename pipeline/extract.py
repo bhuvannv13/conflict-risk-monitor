@@ -1,5 +1,6 @@
 """Download raw data. Files are cached in data/raw so reruns are cheap."""
 import io
+import logging
 import re
 import time
 import zipfile
@@ -11,6 +12,7 @@ import requests
 from . import config
 
 GED_COLUMNS = ["id", "country_id", "type_of_violence", "date_start", "date_end", "best"]
+log = logging.getLogger(__name__)
 HEADERS = {"User-Agent": "conflict-risk-monitor (github.com/bhuvannv13/conflict-risk-monitor)"}
 
 
@@ -125,7 +127,10 @@ def fetch_world_bank(indicator):
             headers=HEADERS, timeout=120,
         )
         response.raise_for_status()
-        meta, data = response.json()
+        payload = response.json()
+        if len(payload) != 2:  # the API answers 200 with a message for unknown indicators
+            raise ValueError(f"unexpected World Bank response: {str(payload)[:120]}")
+        meta, data = payload
         for item in data or []:
             if item.get("value") is not None and item.get("countryiso3code"):
                 rows.append((item["countryiso3code"], int(item["date"]), float(item["value"])))
@@ -142,7 +147,12 @@ def load_world_bank():
         if cache.exists():
             frame = pd.read_csv(cache)
         else:
-            frame = fetch_world_bank(indicator)
+            try:
+                frame = fetch_world_bank(indicator)
+            except (requests.RequestException, ValueError) as error:
+                # One retired or failing indicator should not discard the others.
+                log.warning("Skipping World Bank indicator %s (%s): %s", indicator, name, error)
+                continue
             cache.parent.mkdir(parents=True, exist_ok=True)
             frame.to_csv(cache, index=False)
         frames.append(frame.assign(indicator=name))

@@ -4,6 +4,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 RAW_DIR = ROOT / "data" / "raw"
 SITE_DATA_DIR = ROOT / "docs" / "data"
+POWERBI_DIR = ROOT / "powerbi" / "data"
+POWERBI_FROM = "2000-01"  # first month written to the Power BI country-month table
 
 # UCDP Georeferenced Event Dataset (final yearly release) and the monthly candidate release.
 # Both are published under CC BY 4.0: https://ucdp.uu.se/downloads/
@@ -19,6 +21,14 @@ WDI_INDICATORS = {
     "SP.POP.TOTL": "population",
     "NY.GDP.PCAP.KD": "gdp_per_capita",
     "SP.DYN.IMRT.IN": "infant_mortality",
+    # Added for the second version of the model: economic stress, migration and state capacity.
+    "NY.GDP.MKTP.KD.ZG": "gdp_growth",
+    "FP.CPI.TOTL.ZG": "inflation",
+    "SL.UEM.1524.ZS": "youth_unemployment",
+    "SM.POP.NETM": "net_migration",
+    "MS.MIL.XPND.GD.ZS": "military_spend",
+    "SE.SEC.ENRR": "secondary_enrolment",
+    "SP.URB.TOTL.IN.ZS": "urban_share",
 }
 
 START_MONTH = "1989-01"

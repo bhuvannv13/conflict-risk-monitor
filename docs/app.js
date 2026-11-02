@@ -140,6 +140,13 @@ function renderGlobal() {
   document.getElementById("global-legend").innerHTML = SERIES.map(s => `<span><i style="background:${s.color}"></i>${esc(s.label)}</span>`).join("");
 }
 
+function changeCell(change) {
+  if (change == null) return "–";
+  const points = change * 100;
+  if (Math.abs(points) < 0.5) return "no change";
+  return `<span class="chg ${points > 0 ? "up" : "down"}">${points > 0 ? "▲" : "▼"} ${Math.abs(points).toFixed(1)} pts</span>`;
+}
+
 function renderTable() {
   const q = LocalChat.normalise(document.getElementById("search").value);
   const region = document.getElementById("region").value, band = document.getElementById("band").value;
@@ -149,9 +156,10 @@ function renderTable() {
       <td>${esc(c.name)}</td><td>${esc(c.region)}</td>
       <td><span class="band band-${c.band}">${c.band}</span></td>
       <td class="num">${pct(c.probability)}</td>
+      <td class="num">${changeCell(c.change_1m)}</td>
       <td class="num">${fmt.format(c.deaths_12m.state_based)}</td>
       <td>${sparkline(c.trend_state_based)}</td>
-    </tr>`).join("") || `<tr><td colspan="6">No countries match these filters.</td></tr>`;
+    </tr>`).join("") || `<tr><td colspan="7">No countries match these filters.</td></tr>`;
 }
 
 function showCountry(iso, scroll = true) {
@@ -168,6 +176,8 @@ function showCountry(iso, scroll = true) {
       <ul class="facts">
         <li><span>Risk level</span><span class="band band-${c.band}">${c.band}</span></li>
         <li><span>Probability, next 3 months</span><span>${pct(c.probability)}</span></li>
+        <li><span>Change since last month</span><span>${changeCell(c.change_1m)}</span></li>
+        <li><span>Violence elsewhere in region, last 3 months (deaths)</span><span>${c.regional_violence_3m != null ? fmt.format(c.regional_violence_3m) : "n/a"}</span></li>
         <li><span>State-based deaths, 12 months</span><span>${fmt.format(c.deaths_12m.state_based)}</span></li>
         <li><span>Non-state deaths, 12 months</span><span>${fmt.format(c.deaths_12m.non_state)}</span></li>
         <li><span>One-sided deaths, 12 months</span><span>${fmt.format(c.deaths_12m.one_sided)}</span></li>
@@ -175,6 +185,9 @@ function showCountry(iso, scroll = true) {
         <li><span>Months since last fatal event</span><span>${c.months_since_fatal >= 240 ? "20+ years" : c.months_since_fatal}</span></li>
         <li><span>GDP per person (constant US$)</span><span>${c.gdp_per_capita ? fmt.format(c.gdp_per_capita) : "n/a"}</span></li>
         <li><span>Infant mortality per 1,000 births</span><span>${c.infant_mortality ?? "n/a"}</span></li>
+        <li><span>Inflation (annual %)</span><span>${c.inflation ?? "n/a"}</span></li>
+        <li><span>Youth unemployment (%)</span><span>${c.youth_unemployment ?? "n/a"}</span></li>
+        <li><span>Military spending (% of GDP)</span><span>${c.military_spend ?? "n/a"}</span></li>
       </ul>
     </div>`;
   barChart(box.querySelector("#country-chart"), DATA.trend_months, c.trend_state_based, `Monthly state-based deaths in ${c.name}`);
@@ -184,16 +197,37 @@ function showCountry(iso, scroll = true) {
 
 function metricCell(m) { return m && m.roc_auc != null ? `${m.roc_auc.toFixed(3)} / ${m.average_precision.toFixed(3)} / ${m.brier.toFixed(3)}` : "–"; }
 
+const FEATURE_LABELS = {
+  sb_1m: "State-based deaths, last month", sb_3m: "State-based deaths, 3 months", sb_12m: "State-based deaths, 12 months",
+  sb_36m: "State-based deaths, 36 months", ns_12m: "Non-state deaths, 12 months", os_12m: "One-sided deaths, 12 months",
+  ns_3m: "Non-state deaths, 3 months", os_3m: "One-sided deaths, 3 months", events_12m: "Events, 12 months",
+  months_since_fatal: "Months since a fatal event", months_since_sb25: "Months since 25+ state-based deaths",
+  sb_accel: "Acceleration of violence", sb_share_3m_12m: "Share of last year's deaths that are recent",
+  region_sb_3m: "Violence elsewhere in the region", log_population: "Population", log_gdp_per_capita: "GDP per person",
+  infant_mortality: "Infant mortality", gdp_growth: "GDP growth", inflation: "Inflation", youth_unemployment: "Youth unemployment",
+  military_spend: "Military spending", secondary_enrolment: "Secondary school enrolment", urban_share: "Urban population share",
+  net_migration_slog: "Net migration",
+};
+
+function importanceHtml(rows) {
+  const top = (rows || []).filter(r => r.importance > 0).slice(0, 8);
+  if (!top.length) return "";
+  const max = top[0].importance;
+  return `<p><strong>What the model relies on most</strong> (drop in average precision when an input is shuffled on the test period; a description of the model, not a cause):</p>
+    <ul class="importance">${top.map(r => `<li><span>${esc(FEATURE_LABELS[r.feature] || r.feature)}</span><i style="width:${(r.importance / max * 100).toFixed(0)}%"></i></li>`).join("")}</ul>`;
+}
+
 function renderModel() {
   const mm = DATA.model, p = mm.periods;
   document.getElementById("target-text").textContent = DATA.target.description + ".";
   document.getElementById("model-card").innerHTML = `
     <p><strong>Question the model answers:</strong> ${esc(DATA.target.description)}. 25 deaths is the threshold UCDP uses to count an active armed conflict.</p>
-    <p><strong>Inputs (all known at the end of each month):</strong> recent state-based, non-state and one-sided deaths (1, 3, 12 and 36-month windows), number of events, months since the last fatal event, population, GDP per person and infant mortality from the previous year.</p>
+    <p><strong>Inputs (all known at the end of each month):</strong> recent state-based, non-state and one-sided deaths (1, 3, 12 and 36-month windows), number of events, months since the last fatal event, whether violence is accelerating, violence in the rest of the region, and previous-year World Bank indicators (population, GDP per person and growth, inflation, youth unemployment, infant mortality, military spending, school enrolment, urbanisation and net migration).</p>
     <p><strong>Evaluation:</strong> trained on ${p.train[0]} to ${p.train[1]}, model chosen on ${p.validation[0]} to ${p.validation[1]}, then scored once on ${p.test[0]} to ${p.test[1]}, a period it never saw. Chosen model: <strong>${MODEL_NAMES[mm.chosen]}</strong>.</p>
     <div class="table-wrap"><table class="metrics"><thead><tr><th scope="col">Model</th><th scope="col">Validation: ROC AUC / avg. precision / Brier</th><th scope="col">Test: ROC AUC / avg. precision / Brier</th></tr></thead><tbody>
       ${Object.entries(mm.metrics).map(([k, v]) => `<tr><td>${MODEL_NAMES[k] || k}${k === mm.chosen ? " (chosen)" : ""}</td><td>${metricCell(v.validation)}</td><td>${metricCell(v.test)}</td></tr>`).join("")}
     </tbody></table></div>
+    ${importanceHtml(DATA.feature_importance)}
     <p class="muted">Higher ROC AUC and average precision are better; lower Brier score is better. The persistence baseline simply assumes recent violence continues, which is hard to beat. The model's main value is ranking countries consistently and putting a number on how likely continuation or onset is.</p>
     <p><strong>Limitations:</strong> most risk comes from countries that are already in conflict, so new outbreaks in previously calm countries are hard to foresee. The newest months use UCDP's preliminary candidate data, which can be revised. Deaths from events that span several months are split evenly across those months.</p>`;
 }
@@ -203,9 +237,9 @@ function renderSources() {
   document.getElementById("sources").innerHTML = `
     <ul>
       <li><a href="https://ucdp.uu.se/downloads/">UCDP Georeferenced Event Dataset</a> version ${esc(s.ged?.version || "")} (final data), plus UCDP Candidate Events ${esc(s.candidate?.version || "")} for the most recent months. Licensed CC BY 4.0. Cite Sundberg &amp; Melander (2013), Introducing the UCDP Georeferenced Event Dataset, <em>Journal of Peace Research</em> 50(4), and the current UCDP annual article listed on the downloads page.</li>
-      <li><a href="https://data.worldbank.org/">World Bank World Development Indicators</a> (population, GDP per person, infant mortality). Licensed CC BY 4.0.</li>
+      <li><a href="https://data.worldbank.org/">World Bank World Development Indicators</a> (population, GDP per person and growth, inflation, youth unemployment, infant mortality, military spending, school enrolment, urbanisation, net migration). Licensed CC BY 4.0.</li>
     </ul>
-    <p class="muted">UCDP codes each event from multiple published reports and records a best estimate of deaths, so this page uses researchers' counts rather than headlines or commentary. Page generated ${esc(DATA.generated_at)}.</p>`;
+    <p class="muted">UCDP codes each event from multiple published reports and records a best estimate of deaths, so this page uses researchers' counts rather than headlines or commentary. Page generated ${esc(DATA.generated_at)}. Want to explore the data yourself? The same tables are published for <a href="https://github.com/bhuvannv13/conflict-risk-monitor/tree/HEAD/powerbi">Power BI</a>.</p>`;
 }
 
 /* ---- Chat assistant ---- */

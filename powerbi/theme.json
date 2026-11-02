@@ -1,0 +1,18 @@
+{
+  "name": "Conflict Risk Monitor",
+  "dataColors": ["#3A6EA5", "#D03B3B", "#EC835A", "#FAB219", "#898781", "#5B9E8F", "#8B6BB1", "#B07A3F"],
+  "background": "#FFFFFF",
+  "foreground": "#1F2328",
+  "tableAccent": "#3A6EA5",
+  "good": "#5B9E8F",
+  "neutral": "#FAB219",
+  "bad": "#D03B3B",
+  "maximum": "#D03B3B",
+  "center": "#FAB219",
+  "minimum": "#EAF1F8",
+  "textClasses": {
+    "title": {"fontFace": "Segoe UI Semibold", "fontSize": 14, "color": "#1F2328"},
+    "label": {"fontFace": "Segoe UI", "fontSize": 10, "color": "#4A5058"},
+    "callout": {"fontFace": "Segoe UI Semibold", "fontSize": 28, "color": "#1F2328"}
+  }
+}
