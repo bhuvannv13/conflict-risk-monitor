@@ -1,7 +1,7 @@
 model,period,chosen,roc_auc,average_precision,brier,n,positives
-persistence,validation,False,0.9773,0.9191,0.0292,8448,1063
-persistence,test,False,0.9809,0.9427,0.0259,9504,1382
-logistic_regression,validation,False,0.9913,0.9561,0.022,8448,1063
-logistic_regression,test,False,0.9913,0.9652,0.0202,9504,1382
-gradient_boosting,validation,True,0.9913,0.9598,0.021,8448,1063
-gradient_boosting,test,True,0.9901,0.9616,0.0222,9504,1382
+persistence,validation,False,0.9757,0.9171,0.0292,8448,1063
+persistence,test,False,0.9812,0.9423,0.0259,9504,1382
+logistic_regression,validation,True,0.9915,0.9556,0.0222,8448,1063
+logistic_regression,test,True,0.9914,0.9661,0.0199,9504,1382
+gradient_boosting,validation,False,0.9911,0.9554,0.022,8448,1063
+gradient_boosting,test,False,0.9874,0.9635,0.0209,9504,1382
