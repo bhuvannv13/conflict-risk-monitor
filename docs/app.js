@@ -183,7 +183,7 @@ function renderTable() {
     <tr tabindex="0" data-iso="${c.iso3}">
       <td>${esc(c.name)}</td><td>${esc(c.region)}</td>
       <td><span class="band band-${c.band}">${c.band}</span></td>
-      <td class="num">${pct(c.probability)}</td>
+      <td class="num"><span class="prob lvl-${c.band}"><span class="meter" aria-hidden="true"><i style="width:${Math.max(2, c.probability * 100).toFixed(1)}%"></i></span>${pct(c.probability)}</span></td>
       <td class="num">${changeCell(c.change_1m)}</td>
       <td class="num">${fmt.format(c.deaths_12m.state_based)}</td>
       <td>${sparkline(c.trend_state_based)}</td>
@@ -342,7 +342,21 @@ function setupChat() {
   return chat;
 }
 
+function setupTheme() {
+  const root = document.documentElement, button = document.getElementById("theme-toggle");
+  const dark = () => root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  try { const saved = localStorage.getItem("crm-theme"); if (saved) root.dataset.theme = saved; } catch (e) { /* storage may be blocked */ }
+  const label = () => { button.textContent = dark() ? "☀ Light" : "☾ Dark"; };
+  button.addEventListener("click", () => {
+    root.dataset.theme = dark() ? "light" : "dark";
+    try { localStorage.setItem("crm-theme", root.dataset.theme); } catch (e) { /* ignore */ }
+    label();
+  });
+  label();
+}
+
 async function main() {
+  setupTheme();
   const response = await fetch("data/forecast.json", { cache: "no-cache" });
   DATA = await response.json();
   renderKpis(); renderWatch(); renderGlobal(); renderModel(); renderSources();
