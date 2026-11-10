@@ -60,3 +60,10 @@ tbody tr:hover,tbody tr:focus{background:color-mix(in srgb,var(--accent) 8%,tran
 .importance li{display:grid;grid-template-columns:minmax(0,16rem) 1fr;align-items:center;gap:.75rem;margin:.25rem 0;font-size:.9rem}
 .importance i{display:block;height:8px;border-radius:4px;background:var(--s1)}
 @media (max-width:600px){.importance li{grid-template-columns:1fr}}
+.lists{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+.lists h3{font-size:.9rem;margin:0 0 6px}
+.mini{list-style:none;margin:0;padding:0}
+.mini li{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid var(--line);font-size:.9rem}
+.mini li span{font-variant-numeric:tabular-nums;color:var(--muted);text-align:right}
+.btn{font:inherit;padding:6px 12px;border:1px solid var(--line);border-radius:8px;background:var(--page);color:var(--ink);cursor:pointer;align-self:flex-end}
+.btn:hover{border-color:var(--s1)}

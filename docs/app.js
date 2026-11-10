@@ -147,6 +147,34 @@ function changeCell(change) {
   return `<span class="chg ${points > 0 ? "up" : "down"}">${points > 0 ? "▲" : "▼"} ${Math.abs(points).toFixed(1)} pts</span>`;
 }
 
+function miniList(el, rows, valueFn) {
+  document.getElementById(el).innerHTML = rows.map(c =>
+    `<li><a href="#detail" data-iso="${c.iso3}">${esc(c.name)}</a><span>${valueFn(c)}</span></li>`).join("") || "<li class=\"muted\">None</li>";
+}
+
+function renderWatch() {
+  const withChange = DATA.countries.filter(c => c.change_1m != null);
+  const byChange = [...withChange].sort((a, b) => b.change_1m - a.change_1m);
+  miniList("movers-up", byChange.slice(0, 5), c => `${pct(c.probability)} ${changeCell(c.change_1m)}`);
+  miniList("movers-down", byChange.slice(-5).reverse(), c => `${pct(c.probability)} ${changeCell(c.change_1m)}`);
+  const emerging = DATA.countries.filter(c => c.deaths_12m.state_based < 25)
+    .sort((a, b) => b.probability - a.probability).slice(0, 5);
+  miniList("watchlist", emerging, c => `${pct(c.probability)} · ${c.band}`);
+}
+
+function downloadCsv() {
+  const head = ["iso3", "country", "region", "band", "probability", "probability_prev", "change_1m", "state_based_deaths_12m", "non_state_deaths_12m", "one_sided_deaths_12m", "events_12m", "months_since_fatal"];
+  const cell = v => { const s = v == null ? "" : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+  const lines = DATA.countries.map(c => [c.iso3, c.name, c.region, c.band, c.probability, c.probability_prev, c.change_1m,
+    c.deaths_12m.state_based, c.deaths_12m.non_state, c.deaths_12m.one_sided, c.events_12m, c.months_since_fatal].map(cell).join(","));
+  const blob = new Blob([[head.join(","), ...lines].join("\n")], { type: "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `conflict-risk-${DATA.data_through}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 function renderTable() {
   const q = LocalChat.normalise(document.getElementById("search").value);
   const region = document.getElementById("region").value, band = document.getElementById("band").value;
@@ -317,7 +345,8 @@ function setupChat() {
 async function main() {
   const response = await fetch("data/forecast.json", { cache: "no-cache" });
   DATA = await response.json();
-  renderKpis(); renderGlobal(); renderModel(); renderSources();
+  renderKpis(); renderWatch(); renderGlobal(); renderModel(); renderSources();
+  document.getElementById("download").addEventListener("click", downloadCsv);
   const regionSel = document.getElementById("region");
   [...new Set(DATA.countries.map(c => c.region))].sort().forEach(r => regionSel.add(new Option(r, r)));
   const bandSel = document.getElementById("band");

@@ -30,6 +30,18 @@
     <div id="global-legend" class="legend"></div>
   </section>
 
+  <section class="card" aria-labelledby="watch-title">
+    <div class="card-head">
+      <h2 id="watch-title">What changed and where to watch</h2>
+      <p class="muted">Movers compare this month's estimate with last month's, from the same model. The watchlist shows countries with fewer than 25 state-based deaths in the last 12 months, where the model sees a meaningful chance of an outbreak.</p>
+    </div>
+    <div class="lists">
+      <div><h3>Rising</h3><ol id="movers-up" class="mini"></ol></div>
+      <div><h3>Falling</h3><ol id="movers-down" class="mini"></ol></div>
+      <div><h3>Emerging-risk watchlist</h3><ol id="watchlist" class="mini"></ol></div>
+    </div>
+  </section>
+
   <section class="card" aria-labelledby="table-title">
     <div class="card-head">
       <h2 id="table-title">Country risk, next 3 months</h2>
@@ -37,6 +49,7 @@
     </div>
     <div class="filters">
       <label>Search <input id="search" type="search" placeholder="Country name"></label>
+      <button id="download" type="button" class="btn">Download CSV</button>
       <label>Region <select id="region"><option value="">All regions</option></select></label>
       <label>Risk <select id="band"><option value="">All levels</option></select></label>
     </div>
